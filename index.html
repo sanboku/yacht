@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ヨット</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <h1>ヨット</h1>
+  </header>
+
+  <main>
+    <!-- 開始画面 -->
+    <section id="setup" class="panel">
+      <h2>プレイヤー設定</h2>
+      <label class="field">
+        人数
+        <select id="player-count">
+          <option value="1">1人</option>
+          <option value="2" selected>2人</option>
+          <option value="3">3人</option>
+          <option value="4">4人</option>
+        </select>
+      </label>
+      <div id="name-fields"></div>
+      <button id="start" class="btn primary">ゲーム開始</button>
+
+      <details class="rules">
+        <summary>ルール</summary>
+        <ul>
+          <li>サイコロを5つ振り、全12ラウンドで役を作って得点を競います。</li>
+          <li>1ターンに最大3回まで振れます。残したいサイコロはクリックで「キープ」できます。</li>
+          <li>振ったあと、得点表の空いている役を1つ選んで記入します（0点でも記入が必要）。</li>
+          <li>エース〜シックスの合計が63点以上なら、ボーナス35点が加算されます。</li>
+        </ul>
+      </details>
+    </section>
+
+    <!-- ゲーム画面 -->
+    <section id="game" class="hidden">
+      <div class="panel play-area">
+        <p id="status" class="status" aria-live="polite"></p>
+        <div id="dice" class="dice-row"></div>
+        <p class="hint">サイコロをクリックするとキープできます</p>
+        <button id="roll" class="btn primary">振る</button>
+      </div>
+
+      <div class="panel">
+        <table id="scoresheet" class="scoresheet"></table>
+      </div>
+    </section>
+
+    <!-- 結果ダイアログ -->
+    <dialog id="result">
+      <h2>結果</h2>
+      <ol id="ranking"></ol>
+      <div class="dialog-actions">
+        <button id="again" class="btn primary">もう一度</button>
+        <button id="to-setup" class="btn">設定に戻る</button>
+      </div>
+    </dialog>
+  </main>
+
+  <script src="game.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

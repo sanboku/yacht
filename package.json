@@ -1,0 +1,9 @@
+{
+  "name": "yacht",
+  "version": "1.0.0",
+  "private": true,
+  "description": "サイコロ5つで遊ぶダイスゲーム「ヨット」のウェブアプリ",
+  "scripts": {
+    "test": "node --test"
+  }
+}

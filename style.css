@@ -1,0 +1,185 @@
+:root {
+  --bg: #0f5132;
+  --felt: #146c43;
+  --panel: #ffffff;
+  --text: #1f2933;
+  --muted: #6b7280;
+  --accent: #d97706;
+  --accent-dark: #b45309;
+  --line: #e5e7eb;
+  --held: #fde68a;
+  --current: #fff7ed;
+  --pip: #1f2933;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  color: var(--text);
+  background: radial-gradient(circle at top, var(--felt), var(--bg));
+}
+
+.site-header {
+  text-align: center;
+  color: #fff;
+  padding: 16px;
+}
+.site-header h1 { margin: 0; letter-spacing: 0.2em; }
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 16px 32px;
+}
+
+.hidden { display: none !important; }
+
+.panel {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+h2 { margin-top: 0; }
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.field input, .field select {
+  flex: 1;
+  font-size: 1rem;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.btn {
+  font-size: 1rem;
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  cursor: pointer;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: bold;
+}
+.btn.primary:hover:not(:disabled) { background: var(--accent-dark); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.rules { margin-top: 20px; color: var(--muted); }
+.rules summary { cursor: pointer; }
+
+/* プレイエリア */
+.play-area { text-align: center; }
+.status { font-weight: bold; margin: 0 0 12px; }
+.hint { color: var(--muted); font-size: 0.85rem; margin: 8px 0 16px; }
+
+.dice-row {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.die {
+  width: 64px;
+  height: 64px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 2px solid #d1d5db;
+  background: #fff;
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
+}
+.die:disabled { cursor: default; }
+.die.held {
+  background: var(--held);
+  border-color: var(--accent);
+  transform: translateY(-6px);
+}
+.die.blank { opacity: 0.35; }
+.die.rolling { animation: shake 0.35s; }
+
+.pip {
+  width: 10px;
+  height: 10px;
+  margin: auto;
+  border-radius: 50%;
+  background: var(--pip);
+}
+.die[data-value="1"] .pip { background: #dc2626; width: 14px; height: 14px; }
+
+@keyframes shake {
+  0% { transform: rotate(0); }
+  25% { transform: rotate(-15deg); }
+  50% { transform: rotate(12deg); }
+  75% { transform: rotate(-6deg); }
+  100% { transform: rotate(0); }
+}
+
+/* 得点表 */
+.scoresheet {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+.scoresheet th, .scoresheet td {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 8px;
+  text-align: center;
+}
+.scoresheet th:first-child, .scoresheet td:first-child { text-align: left; }
+.scoresheet .cat-hint {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-weight: normal;
+}
+.scoresheet th.current-player { background: var(--current); color: var(--accent-dark); }
+.scoresheet tr.subtotal td, .scoresheet tr.total td { font-weight: bold; background: #f9fafb; }
+.scoresheet tr.total td { font-size: 1.1rem; }
+
+.cell-btn {
+  width: 100%;
+  min-height: 32px;
+  border: 1px dashed var(--accent);
+  border-radius: 6px;
+  background: var(--current);
+  color: var(--muted);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.cell-btn.good { color: var(--accent-dark); font-weight: bold; }
+.cell-btn:hover { background: var(--held); color: var(--text); }
+
+dialog {
+  border: none;
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 280px;
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+#ranking { font-size: 1.2rem; padding-left: 1.5em; }
+#ranking li { margin: 6px 0; }
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+@media (max-width: 480px) {
+  .die { width: 52px; height: 52px; padding: 6px; }
+  .pip { width: 8px; height: 8px; }
+  .scoresheet { font-size: 0.85rem; }
+  .scoresheet th, .scoresheet td { padding: 4px; }
+}
