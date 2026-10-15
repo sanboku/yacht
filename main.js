@@ -59,10 +59,48 @@
     if (!$("notice").open) $("notice").showModal();
   }
 
+  // オンライン対戦中は画面が自動で消えないようにする（消えるとページが止まり、通信できなくなるため）
+  let wakeLock = null;
+  let wantAwake = false;
+  async function keepAwake(on) {
+    wantAwake = on;
+    try {
+      if (on && !wakeLock && navigator.wakeLock) {
+        wakeLock = await navigator.wakeLock.request("screen");
+        wakeLock.addEventListener("release", () => { wakeLock = null; });
+      } else if (!on && wakeLock) {
+        await wakeLock.release();
+        wakeLock = null;
+      }
+    } catch { /* 対応していない端末では何もしない */ }
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && wantAwake) keepAwake(true);
+  });
+
+  // 通信サーバーへの接続状態を表示する
+  function renderNet(status) {
+    ["online-net", "lobby-net"].forEach((id) => {
+      const el = $(id);
+      el.innerHTML = "";
+      if (!status) return;
+      el.append("通信サーバー: ");
+      status.forEach((b) => {
+        const span = document.createElement("span");
+        span.className = b.connected ? "on" : "off";
+        span.textContent = ` ${b.name}${b.connected ? "●" : "○"}`;
+        el.appendChild(span);
+      });
+    });
+  }
+
   function goHome() {
     if (controller) controller.dispose();
     controller = null;
+    keepAwake(false);
+    renderNet(null);
     setBusy(false);
+    $("online-wait").textContent = "";
     $("join-room").textContent = "部屋に入る";
     closeDialogs();
     document.title = "ヨット";
@@ -147,6 +185,7 @@
       list.appendChild(li);
     });
     $("lobby-start").classList.toggle("hidden", !isHost);
+    $("lobby-keep").classList.toggle("hidden", !isHost);
     $("lobby-start").disabled = players.length < 2;
     $("lobby-wait").textContent = isHost
       ? (players.length < 2 ? "参加者を待っています…" : `${players.length}人で始められます（最大${Online.MAX_PLAYERS}人）`)
@@ -226,6 +265,7 @@
         history.replaceState(null, "", `?room=${code}`);
       },
       onUpdate: view.update,
+      onStatus: renderNet,
       onError(message) {
         setBusy(false);
         if (controller !== hostController) return;
@@ -234,6 +274,7 @@
         } else {
           host.close();
           controller = null;
+          keepAwake(false);
           onlineError(message);
           show("screen-online");
         }
@@ -246,6 +287,7 @@
       dispose: () => host.close(),
     };
     controller = hostController;
+    keepAwake(true);
     $("lobby-code").textContent = "…";
     $("invite").classList.add("hidden");
     renderLobby([{ name: onlineName() }], 0, true);
@@ -254,10 +296,11 @@
 
   function joinRoom(code) {
     code = Online.normalizeCode(code);
-    if (code.length === 0) {
-      onlineError("部屋コードを入力してください。");
+    if (code.length !== 4) {
+      onlineError("部屋コード（4桁の数字）を入力してください。");
       return;
     }
+    $("room-code").value = code;
     onlineError("");
     setBusy(true);
     $("join-room").textContent = "接続中…";
@@ -268,6 +311,7 @@
         if (!joined) {
           joined = true;
           setBusy(false);
+          $("online-wait").textContent = "";
           $("join-room").textContent = "部屋に入る";
           $("lobby-code").textContent = code;
           $("invite").classList.remove("hidden");
@@ -277,12 +321,16 @@
       },
       onWaiting() {
         $("join-room").textContent = "ホストの応答を待っています…";
+        $("online-wait").textContent = "ホストのスマホで待合室の画面が開いたままになっているか確認してください。やめるときは「戻る」を押してください。";
       },
+      onStatus: renderNet,
       onError(message) {
         setBusy(false);
         $("join-room").textContent = "部屋に入る";
         if (controller !== guestController) return;
         controller = null;
+        keepAwake(false);
+        $("online-wait").textContent = "";
         closeDialogs();
         onlineError(message);
         show("screen-online");
@@ -298,6 +346,7 @@
       dispose: () => guest.close(),
     };
     controller = guestController;
+    keepAwake(true);
   }
 
   async function shareInvite() {
