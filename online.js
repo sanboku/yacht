@@ -1,18 +1,30 @@
-// オンライン対戦の通信（PeerJS / WebRTC）
+// オンライン対戦の通信（公開 MQTT ブローカー経由のメッセージ中継）
 // 部屋を作った端末（ホスト）がゲームの状態を持ち、参加者からの操作を受けて全員に配信する。
+// 端末同士を直接つながないので、モバイル回線やアプリの切り替えがあっても通信が途切れにくい。
 (function () {
   "use strict";
 
   const { Game } = window.Yacht;
 
-  const PEER_PREFIX = "sanboku-yacht-";
+  // 片方が落ちていても遊べるよう、2つのブローカーに同時につないで両方に送る（受信側で重複を除く）
+  const BROKERS = [
+    "wss://broker.emqx.io:8084/mqtt",
+    "wss://broker.hivemq.com:8884/mqtt",
+  ];
+  const TOPIC_ROOT = "sanboku-yacht/v1";
   const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // 紛らわしい文字（I, L, O, 0, 1）を除く
   const CODE_LENGTH = 5;
   const MAX_PLAYERS = 4;
-  const CONNECT_TIMEOUT_MS = 15000;
-  // 相手が突然いなくなっても WebRTC はすぐには気づけないため、定期的に生存確認を送り合う
-  const PING_INTERVAL_MS = 2000;
-  const PEER_TIMEOUT_MS = 20000;
+  const BROKER_TIMEOUT_MS = 10000; // どのブローカーにもつながらないときに諦めるまで
+  const HEARTBEAT_MS = 2500; // この間隔で状態（ホスト）や生存確認（ゲスト）を送り続ける
+  const PEER_TIMEOUT_MS = 12000; // これだけ相手から届かなければ切断とみなす
+  const JOIN_TIMEOUT_MS = 30000; // 部屋に入れないまま諦めるまで
+
+  function randomId(length = 12) {
+    let id = "";
+    for (let i = 0; i < length; i++) id += Math.floor(Math.random() * 36).toString(36);
+    return id;
+  }
 
   function randomCode() {
     let code = "";
@@ -32,34 +44,89 @@
     try {
       let id = localStorage.getItem(key);
       if (!id) {
-        id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        id = randomId(16);
         localStorage.setItem(key, id);
       }
       return id;
     } catch {
-      return Math.random().toString(36).slice(2);
+      return randomId(16);
     }
   }
 
-  function peerErrorMessage(err) {
-    switch (err && err.type) {
-      case "peer-unavailable": return "部屋が見つかりません。コードを確認してください。";
-      case "network":
-      case "server-error":
-      case "socket-error":
-      case "socket-closed": return "通信サーバーに接続できません。電波の良い所で再度お試しください。";
-      case "browser-incompatible": return "このブラウザはオンライン対戦に対応していません。";
-      default: return "通信エラーが発生しました。";
+  // 複数ブローカーへの接続をまとめて、1本の通信路のように扱う
+  // handlers: { onMessage(topic, msg), onConnect(), onFail() }
+  function createRelay(subscribeTopic, handlers) {
+    const seen = new Set();
+    const seenOrder = [];
+    let everConnected = false;
+
+    const clients = BROKERS.map((url) => {
+      const client = window.mqtt.connect(url, {
+        clientId: "yacht_" + randomId(),
+        clean: true,
+        keepalive: 30,
+        reconnectPeriod: 2000,
+        connectTimeout: BROKER_TIMEOUT_MS,
+        protocolVersion: 4,
+      });
+      client.on("connect", () => {
+        client.subscribe(subscribeTopic, { qos: 0 });
+        everConnected = true;
+        handlers.onConnect();
+      });
+      client.on("message", (topic, payload) => {
+        let msg;
+        try { msg = JSON.parse(payload.toString()); } catch { return; }
+        if (!msg || typeof msg !== "object" || typeof msg.mid !== "string") return;
+        if (seen.has(msg.mid)) return; // もう片方のブローカーから届いた同じメッセージ
+        seen.add(msg.mid);
+        seenOrder.push(msg.mid);
+        if (seenOrder.length > 500) seen.delete(seenOrder.shift());
+        handlers.onMessage(topic, msg);
+      });
+      client.on("error", () => { /* 再接続は mqtt.js が自動で行う */ });
+      return client;
+    });
+
+    const failTimer = setTimeout(() => {
+      if (!everConnected) handlers.onFail();
+    }, BROKER_TIMEOUT_MS + 2000);
+
+    // スマホでアプリを切り替えて戻ってきたら、すぐにつなぎ直す
+    function onVisible() {
+      if (document.visibilityState !== "visible") return;
+      clients.forEach((c) => { if (!c.connected && !c.disconnecting) c.reconnect(); });
     }
+    document.addEventListener("visibilitychange", onVisible);
+
+    return {
+      send(topic, msg) {
+        const payload = JSON.stringify({ ...msg, mid: randomId(16) });
+        clients.forEach((c) => { if (c.connected) c.publish(topic, payload, { qos: 0 }); });
+      },
+      get connected() { return clients.some((c) => c.connected); },
+      close() {
+        clearTimeout(failTimer);
+        document.removeEventListener("visibilitychange", onVisible);
+        clients.forEach((c) => c.end(true));
+      },
+    };
   }
+
+  const hostTopic = (code) => `${TOPIC_ROOT}/${code}/host`;
+  const guestTopic = (code, id) => `${TOPIC_ROOT}/${code}/c/${id}`;
+
+  const CONNECT_ERROR = "通信サーバーに接続できません。電波の良い所で再度お試しください。";
 
   // ---- ホスト（部屋を作った人） ----
   // ev: { onReady(code), onUpdate(payload), onError(message) }
   function createHost(name, ev) {
-    const players = [{ name, clientId: clientId(), conn: null, connected: true }];
+    const code = randomCode();
+    const hostId = randomId();
+    const players = [{ name, clientId: clientId(), connected: true, lastSeen: Infinity }];
     let game = null;
-    let peer = null;
-    let code = null;
+    let seq = 0;
+    let ready = false;
     let closed = false;
 
     function publicPlayers() {
@@ -72,47 +139,37 @@
         : { type: "lobby", players: publicPlayers() };
     }
 
-    function broadcast() {
-      const msg = payload();
+    // local: ホスト自身の画面も更新するか（定期配信のときは変化がないので更新しない）
+    function broadcast(local = true) {
+      if (closed) return;
+      const msg = { ...payload(), host: hostId, seq: ++seq };
       players.forEach((p, index) => {
-        if (p.conn && p.connected) p.conn.send({ ...msg, you: index });
+        if (index > 0) relay.send(guestTopic(code, p.clientId), { ...msg, you: index });
       });
-      ev.onUpdate({ ...msg, you: 0 });
+      if (local) ev.onUpdate({ ...msg, you: 0 });
     }
 
-    function reject(conn, message) {
-      conn.send({ type: "rejected", message });
-      setTimeout(() => conn.close(), 500);
-    }
-
-    function handleJoin(conn, msg) {
-      const name = String(msg.name || "").trim().slice(0, 12) || "ゲスト";
-      const existing = players.findIndex((p, i) => i > 0 && p.clientId === msg.clientId);
+    // ゲストは参加リクエストを生存確認として送り続ける
+    function handleJoin(msg) {
+      const playerName = String(msg.name || "").trim().slice(0, 12) || "ゲスト";
+      const existing = players.findIndex((p, i) => i > 0 && p.clientId === msg.from);
       if (existing >= 0) {
-        const old = players[existing].conn;
-        players[existing].conn = conn;
-        players[existing].connected = true;
-        players[existing].lastSeen = Date.now();
-        if (!game) players[existing].name = name;
-        if (old && old !== conn) old.close();
-      } else if (game) {
-        return reject(conn, "ゲームはすでに始まっています。");
-      } else if (players.length >= MAX_PLAYERS) {
-        return reject(conn, `満員です（最大${MAX_PLAYERS}人）。`);
-      } else {
-        players.push({ name, clientId: msg.clientId, conn, connected: true, lastSeen: Date.now() });
+        const player = players[existing];
+        player.lastSeen = Date.now();
+        const renamed = !game && player.name !== playerName;
+        if (renamed) player.name = playerName;
+        if (renamed || !player.connected) {
+          player.connected = true;
+          broadcast();
+        }
+        return;
       }
-      broadcast();
-    }
-
-    function handleClose(conn) {
-      const index = players.findIndex((p) => p.conn === conn);
-      if (index < 0 || closed) return;
       if (game) {
-        players[index].connected = false;
-        players[index].conn = null;
+        return relay.send(guestTopic(code, msg.from), { type: "rejected", message: "ゲームはすでに始まっています。" });
+      } else if (players.length >= MAX_PLAYERS) {
+        return relay.send(guestTopic(code, msg.from), { type: "rejected", message: `満員です（最大${MAX_PLAYERS}人）。` });
       } else {
-        players.splice(index, 1);
+        players.push({ name: playerName, clientId: msg.from, connected: true, lastSeen: Date.now() });
       }
       broadcast();
     }
@@ -133,52 +190,38 @@
       if (changed) broadcast();
     }
 
-    function open() {
-      code = randomCode();
-      peer = new window.Peer(PEER_PREFIX + code);
-      peer.on("open", () => ev.onReady(code));
-      peer.on("connection", (conn) => {
-        conn.on("data", (msg) => {
-          if (!msg || typeof msg !== "object") return;
-          const sender = players.find((p) => p.conn === conn);
-          if (sender) sender.lastSeen = Date.now();
-          if (msg.type === "join") handleJoin(conn, msg);
-          else if (msg.type === "action") {
-            apply(players.findIndex((p) => p.conn === conn), msg);
-          }
-        });
-        conn.on("close", () => handleClose(conn));
-        conn.on("error", () => handleClose(conn));
-      });
-      peer.on("disconnected", () => {
-        // シグナリングサーバーとの接続だけが切れた場合は再接続を試みる（対戦中の通信は維持される）
-        if (!closed && !peer.destroyed) peer.reconnect();
-      });
-      peer.on("error", (err) => {
-        if (err.type === "unavailable-id") {
-          peer.destroy();
-          open();
-        } else if (err.type !== "peer-unavailable") {
-          ev.onError(peerErrorMessage(err));
-        }
-      });
+    function handleMessage(_topic, msg) {
+      if (typeof msg.from !== "string") return;
+      if (msg.type === "join") return handleJoin(msg);
+      const index = players.findIndex((p, i) => i > 0 && p.clientId === msg.from);
+      if (index >= 0 && msg.type === "action") apply(index, msg);
     }
 
+    const relay = createRelay(hostTopic(code), {
+      onMessage: handleMessage,
+      onConnect() {
+        if (!ready) {
+          ready = true;
+          ev.onReady(code);
+        }
+        broadcast(); // つなぎ直したときも最新の状態を配り直す
+      },
+      onFail() { ev.onError(CONNECT_ERROR); },
+    });
+
+    // 定期的に最新の状態を配る（取りこぼしの回復と、ゲストへの生存通知を兼ねる）
     const heartbeat = setInterval(() => {
       const now = Date.now();
-      players.forEach((p) => {
-        if (!p.conn) return;
-        if (now - p.lastSeen > PEER_TIMEOUT_MS) {
-          const conn = p.conn;
-          handleClose(conn);
-          conn.close();
-        } else {
-          p.conn.send({ type: "ping" });
-        }
-      });
-    }, PING_INTERVAL_MS);
-
-    open();
+      let changed = false;
+      for (let i = players.length - 1; i > 0; i--) {
+        const p = players[i];
+        if (!p.connected || now - p.lastSeen <= PEER_TIMEOUT_MS) continue;
+        if (game) p.connected = false;
+        else players.splice(i, 1); // 待合室で抜けた人は外す
+        changed = true;
+      }
+      if (changed || players.length > 1) broadcast(changed);
+    }, HEARTBEAT_MS);
 
     return {
       get code() { return code; },
@@ -193,73 +236,82 @@
       close() {
         closed = true;
         clearInterval(heartbeat);
-        if (peer) peer.destroy();
+        relay.close();
       },
     };
   }
 
   // ---- ゲスト（部屋に入る人） ----
-  // ev: { onUpdate(payload), onError(message), onDisconnect() }
+  // ev: { onUpdate(payload), onError(message), onHostLost(lost: boolean), onWaiting() }
   function createGuest(code, name, ev) {
-    let peer = new window.Peer();
-    let conn = null;
-    let closed = false;
+    const me = clientId();
     let joined = false;
+    let closed = false;
+    let hostId = null;
+    let lastSeq = 0;
     let lastSeen = Date.now();
+    let hostLost = false;
+    let lastView = "";
+    const startedAt = Date.now();
 
-    const timer = setTimeout(() => {
-      if (!joined) fail("部屋に接続できませんでした。コードを確認するか、もう一度お試しください。");
-    }, CONNECT_TIMEOUT_MS);
-
-    const heartbeat = setInterval(() => {
-      if (!joined || !conn || !conn.open) return;
-      if (Date.now() - lastSeen > PEER_TIMEOUT_MS) lost();
-      else conn.send({ type: "ping" });
-    }, PING_INTERVAL_MS);
-
-    function lost() {
+    function finish(message) {
       if (closed) return;
       closed = true;
       clearInterval(heartbeat);
-      peer.destroy();
-      if (joined) ev.onDisconnect();
-      else ev.onError("部屋に接続できませんでした。");
-    }
-
-    function fail(message) {
-      if (closed) return;
-      closed = true;
-      clearTimeout(timer);
-      clearInterval(heartbeat);
-      peer.destroy();
+      relay.close();
       ev.onError(message);
     }
 
-    peer.on("open", () => {
-      conn = peer.connect(PEER_PREFIX + code, { reliable: true });
-      conn.on("open", () => conn.send({ type: "join", name, clientId: clientId() }));
-      conn.on("data", (msg) => {
-        if (!msg || typeof msg !== "object") return;
+    const relay = createRelay(guestTopic(code, me), {
+      onMessage(_topic, msg) {
+        if (closed) return;
+        if (msg.type === "rejected") return finish(msg.message);
+        if (msg.type !== "lobby" && msg.type !== "state") return;
+        // ホストが部屋を作り直した場合は番号を振り直す。古い（順番が前後した）状態は捨てる
+        if (msg.host !== hostId) { hostId = msg.host; lastSeq = 0; }
+        if (msg.seq <= lastSeq) return;
+        lastSeq = msg.seq;
         lastSeen = Date.now();
-        if (msg.type === "ping") return;
-        if (msg.type === "rejected") return fail(msg.message);
         joined = true;
-        clearTimeout(timer);
+        if (hostLost) { hostLost = false; ev.onHostLost(false); }
+        // 定期配信で内容が変わっていなければ描き直さない（操作中のタップを取りこぼさないため）
+        const view = JSON.stringify([msg.type, msg.you, msg.players, msg.state]);
+        if (view === lastView) return;
+        lastView = view;
         ev.onUpdate(msg);
-      });
-      conn.on("close", lost);
+      },
+      onConnect() {
+        if (!joined) relay.send(hostTopic(code), { type: "join", from: me, name });
+      },
+      onFail() { finish(CONNECT_ERROR); },
     });
-    peer.on("error", (err) => fail(peerErrorMessage(err)));
+
+    // 参加リクエストを送り続ける。参加前はホストがアプリを切り替えていても戻れば応答でき、
+    // 参加後はホストへの生存確認になる。ホストからの音沙汰がなければ知らせる
+    const heartbeat = setInterval(() => {
+      if (joined && !hostLost && Date.now() - lastSeen > PEER_TIMEOUT_MS) {
+        hostLost = true;
+        ev.onHostLost(true);
+      }
+      if (!relay.connected) return;
+      relay.send(hostTopic(code), { type: "join", from: me, name });
+      if (!joined) {
+        if (Date.now() - startedAt > JOIN_TIMEOUT_MS) {
+          finish("部屋が見つかりません。コードが正しいか、ホストが部屋を開いたままか確認してください。");
+        } else if (Date.now() - startedAt > 5000) {
+          ev.onWaiting();
+        }
+      }
+    }, HEARTBEAT_MS);
 
     return {
       act(action) {
-        if (conn && conn.open) conn.send({ type: "action", ...action });
+        relay.send(hostTopic(code), { type: "action", from: me, ...action });
       },
       close() {
         closed = true;
-        clearTimeout(timer);
         clearInterval(heartbeat);
-        peer.destroy();
+        relay.close();
       },
     };
   }

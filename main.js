@@ -54,16 +54,16 @@
     document.querySelectorAll("dialog[open]").forEach((d) => d.close());
   }
 
-  function notice(text, onRetry) {
+  function notice(text) {
     $("notice-text").textContent = text;
-    $("notice-retry").classList.toggle("hidden", !onRetry);
-    $("notice-retry").onclick = () => { $("notice").close(); onRetry(); };
     if (!$("notice").open) $("notice").showModal();
   }
 
   function goHome() {
     if (controller) controller.dispose();
     controller = null;
+    setBusy(false);
+    $("join-room").textContent = "部屋に入る";
     closeDialogs();
     document.title = "ヨット";
     history.replaceState(null, "", location.pathname);
@@ -156,12 +156,17 @@
   // ホスト・ゲスト共通：受け取った状態を画面に反映する
   function makeOnlineView(isHost) {
     let game = null;
+    let last = null;
     let wasMyTurn = false;
+    let hostLost = false;
+    const LOST_NOTE = "ホストの応答を待っています…";
 
-    return function onUpdate(msg) {
+    function update(msg) {
+      last = msg;
       const myIndex = msg.you;
       if (msg.type === "lobby") {
         renderLobby(msg.players, myIndex, isHost);
+        if (hostLost) $("lobby-wait").textContent = LOST_NOTE;
         show("screen-lobby");
         return;
       }
@@ -181,7 +186,8 @@
       board.render(game, {
         canAct: myTurn || proxy,
         myIndex,
-        note: proxy ? `${game.player.name}が切断中のため代わりに操作できます` : "",
+        note: hostLost ? LOST_NOTE
+          : proxy ? `${game.player.name}が切断中のため代わりに操作できます` : "",
       });
 
       // 自分の番になったら知らせる
@@ -195,13 +201,22 @@
           note: isHost ? "" : "ホストが「もう一度」を押すと再戦が始まります",
         });
       }
+    }
+
+    return {
+      update,
+      // ゲスト：ホストからの通信が途絶えた／戻ったことを表示に反映する
+      setHostLost(lost) {
+        hostLost = lost;
+        if (last) update(last);
+      },
     };
   }
 
   function hostRoom() {
     onlineError("");
     setBusy(true);
-    const onUpdate = makeOnlineView(true);
+    const view = makeOnlineView(true);
     const host = Online.createHost(onlineName(), {
       onReady(code) {
         setBusy(false);
@@ -210,7 +225,7 @@
         $("share-done").textContent = "";
         history.replaceState(null, "", `?room=${code}`);
       },
-      onUpdate,
+      onUpdate: view.update,
       onError(message) {
         setBusy(false);
         if (controller !== hostController) return;
@@ -246,7 +261,7 @@
     onlineError("");
     setBusy(true);
     $("join-room").textContent = "接続中…";
-    const onUpdate = makeOnlineView(false);
+    const view = makeOnlineView(false);
     let joined = false;
     const guest = Online.createGuest(code, onlineName(), {
       onUpdate(msg) {
@@ -258,7 +273,10 @@
           $("invite").classList.remove("hidden");
           history.replaceState(null, "", `?room=${code}`);
         }
-        onUpdate(msg);
+        view.update(msg);
+      },
+      onWaiting() {
+        $("join-room").textContent = "ホストの応答を待っています…";
       },
       onError(message) {
         setBusy(false);
@@ -269,12 +287,8 @@
         onlineError(message);
         show("screen-online");
       },
-      onDisconnect() {
-        if (controller !== guestController) return;
-        notice("ホストとの接続が切れました。", () => {
-          controller = null;
-          joinRoom(code);
-        });
+      onHostLost(lost) {
+        if (controller === guestController) view.setHostLost(lost);
       },
     });
     const guestController = {
