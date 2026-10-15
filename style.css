@@ -10,63 +10,73 @@
   --held: #fde68a;
   --current: #fff7ed;
   --pip: #1f2933;
+  --error: #dc2626;
+  /* サイコロの大きさ：画面幅と高さの両方に合わせて縮む */
+  --die: min(16vw, 8.5svh, 64px);
 }
 
 * { box-sizing: border-box; }
 
+html, body { margin: 0; }
+
 body {
-  margin: 0;
   min-height: 100vh;
+  min-height: 100svh;
   font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
   color: var(--text);
-  background: radial-gradient(circle at top, var(--felt), var(--bg));
-}
-
-.site-header {
-  text-align: center;
-  color: #fff;
-  padding: 16px;
-}
-.site-header h1 { margin: 0; letter-spacing: 0.2em; }
-
-main {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 0 16px 32px;
+  background: radial-gradient(circle at top, var(--felt), var(--bg)) fixed;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .hidden { display: none !important; }
 
-.panel {
-  background: var(--panel);
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 16px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+/* ---- メニュー系の画面 ---- */
+.menu-screen {
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+}
+.logo {
+  color: #fff;
+  text-align: center;
+  letter-spacing: 0.2em;
+  margin: 8px 0 20px;
 }
 
-h2 { margin-top: 0; }
+.panel {
+  background: var(--panel);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 
 .field {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  white-space: nowrap;
 }
 .field input, .field select {
   flex: 1;
-  font-size: 1rem;
-  padding: 6px 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  min-width: 0;
+  font-size: 16px; /* iOS で入力時にズームしないよう 16px 以上 */
+  padding: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
 }
+.code-input { text-transform: uppercase; letter-spacing: 0.2em; font-weight: bold; }
 
 .btn {
   font-size: 1rem;
-  padding: 10px 24px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
   background: #fff;
+  color: var(--text);
   cursor: pointer;
 }
 .btn.primary {
@@ -76,28 +86,163 @@ h2 { margin-top: 0; }
   font-weight: bold;
 }
 .btn.primary:hover:not(:disabled) { background: var(--accent-dark); }
+.btn.big { padding: 14px 20px; font-size: 1.1rem; }
+.btn.link {
+  border: none;
+  background: none;
+  color: var(--muted);
+  text-decoration: underline;
+}
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.rules { margin-top: 20px; color: var(--muted); }
-.rules summary { cursor: pointer; }
+.mode-desc { margin: -4px 0 8px; color: var(--muted); font-size: 0.85rem; text-align: center; }
+.mode-desc:empty { display: none; }
+.divider { text-align: center; color: var(--muted); font-size: 0.85rem; }
+.error { color: var(--error); margin: 0; font-size: 0.9rem; }
+.error:empty { display: none; }
 
-/* プレイエリア */
-.play-area { text-align: center; }
-.status { font-weight: bold; margin: 0 0 12px; }
-.hint { color: var(--muted); font-size: 0.85rem; margin: 8px 0 16px; }
+.lobby-label { margin: 0; color: var(--muted); font-size: 0.85rem; }
+.lobby-code {
+  margin: 0;
+  text-align: center;
+  font-size: 2.4rem;
+  font-weight: bold;
+  letter-spacing: 0.25em;
+  user-select: all;
+}
+.invite { display: flex; flex-direction: column; gap: 4px; }
+.share-done { margin: 0; text-align: center; font-size: 0.85rem; color: var(--accent-dark); }
+.share-done:empty { display: none; }
+.lobby-players { margin: 0; padding-left: 1.5em; font-size: 1.1rem; }
+.lobby-players li { padding: 4px 0; }
+.lobby-players .tag { font-size: 0.75rem; color: var(--muted); margin-left: 6px; }
 
+/* ---- ゲーム画面：画面の高さぴったりに収める ---- */
+.game-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100vh;
+  height: 100dvh;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: calc(6px + env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom));
+  overflow: hidden;
+}
+
+.game-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+}
+.status {
+  flex: 1;
+  margin: 0;
+  font-weight: bold;
+  font-size: 0.9rem;
+  text-align: center;
+  line-height: 1.3;
+}
+.icon-btn {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.sheet-wrap {
+  flex: 1;
+  min-height: 0;
+  background: var(--panel);
+  border-radius: 12px;
+  overflow: auto;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.scoresheet {
+  width: 100%;
+  height: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: clamp(12px, 2.1svh, 16px);
+}
+.scoresheet th, .scoresheet td {
+  border-bottom: 1px solid var(--line);
+  padding: 0 4px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scoresheet thead th {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  font-size: 0.85em;
+  padding: 4px;
+}
+.scoresheet th[scope="row"], .scoresheet thead th:first-child {
+  width: 30%;
+  text-align: left;
+  padding-left: 8px;
+}
+.scoresheet th[scope="row"] { font-weight: 600; }
+.scoresheet thead th.current-player { background: var(--current); color: var(--accent-dark); }
+.scoresheet thead th.me { text-decoration: underline; text-underline-offset: 3px; }
+.scoresheet thead th.offline { color: var(--muted); }
+.scoresheet thead th.offline::after { content: "（切断）"; font-size: 0.8em; }
+.scoresheet tr.subtotal th, .scoresheet tr.subtotal td {
+  font-size: 0.85em;
+  color: var(--muted);
+  background: #f9fafb;
+}
+.scoresheet tr.total th, .scoresheet tr.total td {
+  font-weight: bold;
+  background: #f3f4f6;
+  border-bottom: none;
+}
+
+.cell-btn {
+  width: 100%;
+  height: calc(100% - 4px);
+  min-height: 22px;
+  padding: 0;
+  border: 1px dashed var(--accent);
+  border-radius: 6px;
+  background: var(--current);
+  color: var(--muted);
+  font-size: inherit;
+  cursor: pointer;
+}
+.cell-btn.good { color: var(--accent-dark); font-weight: bold; }
+.cell-btn:hover:not(:disabled) { background: var(--held); color: var(--text); }
+.cell-btn:disabled { cursor: default; border-color: #d1d5db; background: #f9fafb; opacity: 0.7; }
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
 .dice-row {
   display: flex;
   justify-content: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: min(2.5vw, 12px);
+  padding-top: 6px; /* キープ時に浮き上がる分 */
 }
 
 .die {
-  width: 64px;
-  height: 64px;
-  padding: 8px;
-  border-radius: 12px;
+  width: var(--die);
+  height: var(--die);
+  padding: calc(var(--die) * 0.13);
+  border-radius: calc(var(--die) * 0.2);
   border: 2px solid #d1d5db;
   background: #fff;
   display: grid;
@@ -115,13 +260,13 @@ h2 { margin-top: 0; }
 .die.rolling { animation: shake 0.35s; }
 
 .pip {
-  width: 10px;
-  height: 10px;
+  width: calc(var(--die) * 0.16);
+  height: calc(var(--die) * 0.16);
   margin: auto;
   border-radius: 50%;
   background: var(--pip);
 }
-.die[data-value="1"] .pip { background: #dc2626; width: 14px; height: 14px; }
+.die[data-value="1"] .pip { background: #dc2626; width: calc(var(--die) * 0.22); height: calc(var(--die) * 0.22); }
 
 @keyframes shake {
   0% { transform: rotate(0); }
@@ -131,55 +276,26 @@ h2 { margin-top: 0; }
   100% { transform: rotate(0); }
 }
 
-/* 得点表 */
-.scoresheet {
+.roll-btn {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 0.95rem;
+  max-width: 360px;
+  padding: min(1.6svh, 12px) 20px;
 }
-.scoresheet th, .scoresheet td {
-  border-bottom: 1px solid var(--line);
-  padding: 6px 8px;
-  text-align: center;
-}
-.scoresheet th:first-child, .scoresheet td:first-child { text-align: left; }
-.scoresheet .cat-hint {
-  display: block;
-  font-size: 0.7rem;
-  color: var(--muted);
-  font-weight: normal;
-}
-.scoresheet th.current-player { background: var(--current); color: var(--accent-dark); }
-.scoresheet tr.subtotal td, .scoresheet tr.total td { font-weight: bold; background: #f9fafb; }
-.scoresheet tr.total td { font-size: 1.1rem; }
 
-.cell-btn {
-  width: 100%;
-  min-height: 32px;
-  border: 1px dashed var(--accent);
-  border-radius: 6px;
-  background: var(--current);
-  color: var(--muted);
-  font-size: 0.95rem;
-  cursor: pointer;
-}
-.cell-btn.good { color: var(--accent-dark); font-weight: bold; }
-.cell-btn:hover { background: var(--held); color: var(--text); }
-
+/* ---- ダイアログ ---- */
 dialog {
   border: none;
-  border-radius: 12px;
-  padding: 24px;
-  min-width: 280px;
+  border-radius: 14px;
+  padding: 20px;
+  width: min(92vw, 420px);
+  max-height: 90svh;
 }
 dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
-#ranking { font-size: 1.2rem; padding-left: 1.5em; }
-#ranking li { margin: 6px 0; }
-.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
-
-@media (max-width: 480px) {
-  .die { width: 52px; height: 52px; padding: 6px; }
-  .pip { width: 8px; height: 8px; }
-  .scoresheet { font-size: 0.85rem; }
-  .scoresheet th, .scoresheet td { padding: 4px; }
-}
+dialog h2 { margin-top: 0; }
+.ranking { font-size: 1.2rem; padding-left: 1.5em; }
+.ranking li { margin: 6px 0; }
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.rules-list { padding-left: 1.2em; font-size: 0.9rem; line-height: 1.6; }
+.rules-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.rules-table th, .rules-table td { border-bottom: 1px solid var(--line); padding: 6px 4px; text-align: left; }
+.rules-table th { white-space: nowrap; }

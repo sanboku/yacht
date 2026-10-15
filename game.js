@@ -82,10 +82,25 @@
   class Game {
     constructor(playerNames, random = Math.random) {
       this.random = random;
+      this.rollId = 0;
       this.players = playerNames.map((name) => ({ name, sheet: {} }));
       this.current = 0;
       this.round = 1;
       this.newTurn();
+    }
+
+    // オンライン対戦で送受信するための状態
+    toState() {
+      return {
+        players: this.players, current: this.current, round: this.round,
+        dice: this.dice, held: this.held, rollsLeft: this.rollsLeft, rollId: this.rollId,
+      };
+    }
+
+    static fromState(state, random = Math.random) {
+      const game = Object.create(Game.prototype);
+      Object.assign(game, JSON.parse(JSON.stringify(state)), { random });
+      return game;
     }
 
     newTurn() {
@@ -114,6 +129,7 @@
       if (!this.canRoll()) return false;
       this.dice = this.dice.map((d, i) => (this.held[i] ? d : rollDie(this.random)));
       this.rollsLeft--;
+      this.rollId++;
       return true;
     }
 

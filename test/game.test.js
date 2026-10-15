@@ -77,3 +77,17 @@ test("ゲーム進行：振る回数・キープ・手番交代・終了", () =>
   assert.equal(game.ranking().length, 2);
   assert.equal(game.score("yacht"), false);
 });
+
+test("状態の保存と復元", () => {
+  const game = new Game(["A", "B"]);
+  game.roll();
+  game.toggleHold(2);
+  game.score("choice");
+  game.roll();
+  const copy = Game.fromState(JSON.parse(JSON.stringify(game.toState())));
+  assert.deepEqual(copy.toState(), game.toState());
+  assert.equal(copy.player.name, "B");
+  assert.ok(copy.canScore("yacht"));
+  assert.ok(copy.roll());
+  assert.equal(copy.rollId, game.rollId + 1);
+});

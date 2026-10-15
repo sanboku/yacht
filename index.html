@@ -2,19 +2,29 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f5132">
   <title>ヨット</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎲</text></svg>">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="site-header">
-    <h1>ヨット</h1>
-  </header>
+  <!-- モード選択 -->
+  <section id="screen-home" class="screen menu-screen">
+    <h1 class="logo">ヨット</h1>
+    <div class="panel">
+      <button id="go-local" class="btn primary big">1台で遊ぶ</button>
+      <p class="mode-desc">1台のスマホを順番に回して遊びます（1〜4人）</p>
+      <button id="go-online" class="btn primary big">オンラインで遊ぶ</button>
+      <p class="mode-desc">それぞれのスマホで、離れた人とも遊べます（2〜4人）</p>
+      <button class="btn link open-rules">ルールを見る</button>
+    </div>
+  </section>
 
-  <main>
-    <!-- 開始画面 -->
-    <section id="setup" class="panel">
-      <h2>プレイヤー設定</h2>
+  <!-- 1台モードの設定 -->
+  <section id="screen-local" class="screen menu-screen hidden">
+    <h1 class="logo">1台で遊ぶ</h1>
+    <div class="panel">
       <label class="field">
         人数
         <select id="player-count">
@@ -25,45 +35,105 @@
         </select>
       </label>
       <div id="name-fields"></div>
-      <button id="start" class="btn primary">ゲーム開始</button>
+      <button id="local-start" class="btn primary big">ゲーム開始</button>
+      <button class="btn link go-home">戻る</button>
+    </div>
+  </section>
 
-      <details class="rules">
-        <summary>ルール</summary>
-        <ul>
-          <li>サイコロを5つ振り、全12ラウンドで役を作って得点を競います。</li>
-          <li>1ターンに最大3回まで振れます。残したいサイコロはクリックで「キープ」できます。</li>
-          <li>振ったあと、得点表の空いている役を1つ選んで記入します（0点でも記入が必要）。</li>
-          <li>エース〜シックスの合計が63点以上なら、ボーナス35点が加算されます。</li>
-        </ul>
-      </details>
-    </section>
+  <!-- オンラインモードの入口 -->
+  <section id="screen-online" class="screen menu-screen hidden">
+    <h1 class="logo">オンライン</h1>
+    <div class="panel">
+      <label class="field">
+        名前
+        <input id="online-name" type="text" maxlength="12" placeholder="あなたの名前">
+      </label>
+      <button id="create-room" class="btn primary big">部屋を作る</button>
+      <div class="divider">または</div>
+      <label class="field">
+        部屋コード
+        <input id="room-code" type="text" maxlength="5" placeholder="例: K7M2Q"
+          autocapitalize="characters" autocomplete="off" class="code-input">
+      </label>
+      <button id="join-room" class="btn big">部屋に入る</button>
+      <p id="online-error" class="error" role="alert"></p>
+      <button class="btn link go-home">戻る</button>
+    </div>
+  </section>
 
-    <!-- ゲーム画面 -->
-    <section id="game" class="hidden">
-      <div class="panel play-area">
-        <p id="status" class="status" aria-live="polite"></p>
-        <div id="dice" class="dice-row"></div>
-        <p class="hint">サイコロをクリックするとキープできます</p>
-        <button id="roll" class="btn primary">振る</button>
+  <!-- ロビー（待合室） -->
+  <section id="screen-lobby" class="screen menu-screen hidden">
+    <h1 class="logo">待合室</h1>
+    <div class="panel">
+      <p class="lobby-label">部屋コード</p>
+      <p id="lobby-code" class="lobby-code">-----</p>
+      <div id="invite" class="invite hidden">
+        <button id="share-invite" class="btn">招待リンクを送る</button>
+        <p id="share-done" class="share-done" aria-live="polite"></p>
       </div>
+      <p class="lobby-label">参加者</p>
+      <ol id="lobby-players" class="lobby-players"></ol>
+      <button id="lobby-start" class="btn primary big hidden">ゲーム開始</button>
+      <p id="lobby-wait" class="mode-desc"></p>
+      <button id="lobby-leave" class="btn link">退出する</button>
+    </div>
+  </section>
 
-      <div class="panel">
-        <table id="scoresheet" class="scoresheet"></table>
-      </div>
-    </section>
+  <!-- ゲーム画面（スマホでもスクロールなしで全体が収まるレイアウト） -->
+  <section id="screen-game" class="screen game-screen hidden">
+    <header class="game-bar">
+      <button id="quit" class="icon-btn" aria-label="やめる">✕</button>
+      <p id="status" class="status" aria-live="polite"></p>
+      <button class="icon-btn open-rules" aria-label="ルール">?</button>
+    </header>
+    <div class="sheet-wrap">
+      <table id="scoresheet" class="scoresheet"></table>
+    </div>
+    <div class="controls">
+      <div id="dice" class="dice-row"></div>
+      <button id="roll" class="btn primary roll-btn">振る</button>
+    </div>
+  </section>
 
-    <!-- 結果ダイアログ -->
-    <dialog id="result">
-      <h2>結果</h2>
-      <ol id="ranking"></ol>
-      <div class="dialog-actions">
-        <button id="again" class="btn primary">もう一度</button>
-        <button id="to-setup" class="btn">設定に戻る</button>
-      </div>
-    </dialog>
-  </main>
+  <!-- 結果 -->
+  <dialog id="result">
+    <h2>結果</h2>
+    <ol id="ranking" class="ranking"></ol>
+    <p id="result-note" class="mode-desc"></p>
+    <div class="dialog-actions">
+      <button id="again" class="btn primary">もう一度</button>
+      <button id="result-home" class="btn">トップへ</button>
+    </div>
+  </dialog>
 
+  <!-- ルール -->
+  <dialog id="rules">
+    <h2>ルール</h2>
+    <ul class="rules-list">
+      <li>全12ラウンド。1ターンに最大3回までサイコロを振れます。</li>
+      <li>サイコロをタップすると「キープ」され、振り直しても変わりません。</li>
+      <li>振ったあと、得点表の空いている役を1つ選んで記入します（0点でも記入が必要）。</li>
+      <li>エース〜シックスの合計が63点以上で、ボーナス35点。</li>
+    </ul>
+    <table id="rules-table" class="rules-table"></table>
+    <div class="dialog-actions">
+      <button class="btn primary close-dialog">閉じる</button>
+    </div>
+  </dialog>
+
+  <!-- お知らせ -->
+  <dialog id="notice">
+    <p id="notice-text"></p>
+    <div class="dialog-actions">
+      <button id="notice-retry" class="btn primary hidden">再接続</button>
+      <button id="notice-ok" class="btn">OK</button>
+    </div>
+  </dialog>
+
+  <script src="vendor/peerjs.min.js"></script>
   <script src="game.js"></script>
+  <script src="board.js"></script>
+  <script src="online.js"></script>
   <script src="main.js"></script>
 </body>
 </html>
