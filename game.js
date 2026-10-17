@@ -5,6 +5,7 @@
   const UPPER_BONUS_THRESHOLD = 63;
   const UPPER_BONUS = 35;
   const MAX_ROLLS = 3;
+  const MAX_NAME_LENGTH = 4; // 得点表で省略せずに表示できる文字数
 
   const CATEGORIES = [
     { id: "ones", name: "エース", section: "upper", hint: "1の目の合計" },
@@ -72,6 +73,17 @@
   function total(sheet) {
     const all = CATEGORIES.reduce((t, cat) => t + (sheet[cat.id] ?? 0), 0);
     return all + bonus(sheet);
+  }
+
+  // 名前を見た目の文字数で4文字までに切り詰める（絵文字や濁点付きの文字も1文字と数える）
+  // trim: 前後の空白を除くか（入力中は除かない）
+  function truncateName(text, trim = true) {
+    const raw = String(text ?? "");
+    const str = trim ? raw.trim() : raw;
+    const chars = typeof Intl !== "undefined" && Intl.Segmenter
+      ? [...new Intl.Segmenter("ja", { granularity: "grapheme" }).segment(str)].map((s) => s.segment)
+      : Array.from(str);
+    return chars.slice(0, MAX_NAME_LENGTH).join("");
   }
 
   // 手番の順番をランダムに決める（Fisher–Yates シャッフル）
@@ -176,7 +188,7 @@
   }
 
   const api = {
-    CATEGORIES, MAX_ROLLS, UPPER_BONUS, UPPER_BONUS_THRESHOLD,
+    CATEGORIES, MAX_ROLLS, MAX_NAME_LENGTH, UPPER_BONUS, UPPER_BONUS_THRESHOLD, truncateName,
     scoreFor, upperSubtotal, bonus, total, Game,
   };
 

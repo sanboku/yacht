@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { scoreFor, total, bonus, Game, CATEGORIES } = require("../game.js");
+const { scoreFor, total, bonus, Game, CATEGORIES, truncateName } = require("../game.js");
 
 test("上段の役は該当する目の合計", () => {
   assert.equal(scoreFor("ones", [1, 1, 2, 3, 1]), 3);
@@ -111,4 +111,13 @@ test("手番の順番はランダムで、order の順に回る", () => {
   assert.deepEqual(turns, ["C", "A", "B", "C"]);
   assert.equal(game.round, 2);
   assert.deepEqual(Game.fromState(game.toState()).order, [2, 0, 1]);
+});
+
+test("名前は見た目の文字数で4文字まで", () => {
+  assert.equal(truncateName("たなかたろう"), "たなかた");
+  assert.equal(truncateName("  abc  "), "abc");
+  assert.equal(truncateName("😀😀😀😀😀"), "😀😀😀😀");
+  assert.equal(truncateName("がぎぐげご"), "がぎぐげ");
+  assert.equal(truncateName("A B ", false), "A B ");
+  assert.equal(truncateName(undefined), "");
 });

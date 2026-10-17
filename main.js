@@ -2,7 +2,7 @@
 (function () {
   "use strict";
 
-  const { CATEGORIES, Game, total } = window.Yacht;
+  const { CATEGORIES, Game, total, truncateName, MAX_NAME_LENGTH } = window.Yacht;
   const { createBoard } = window.YachtBoard;
   const Online = window.YachtOnline;
 
@@ -97,6 +97,18 @@
     show("screen-home");
   }
 
+  // 名前の入力欄は4文字まで。日本語の変換中は待ち、確定した時点で切り詰める
+  // （maxlength は絵文字を2文字と数えたり、変換中に超えられたりするため、自前でも制限する）
+  function limitNameInput(input) {
+    const clamp = () => {
+      const limited = truncateName(input.value, false);
+      if (limited !== input.value) input.value = limited;
+    };
+    input.maxLength = MAX_NAME_LENGTH * 2; // 絵文字（内部では2文字扱い）も4つ入るように
+    input.addEventListener("input", (e) => { if (!e.isComposing) clamp(); });
+    input.addEventListener("compositionend", clamp);
+  }
+
   // ---- 1台モード ----
   function renderNameFields() {
     const namesEl = $("name-fields");
@@ -112,9 +124,10 @@
       label.appendChild(caption);
       const input = document.createElement("input");
       input.type = "text";
-      input.maxLength = 12;
-      input.placeholder = `プレイヤー${i + 1}`;
+      input.className = "name-input";
+      input.placeholder = `P${i + 1}`;
       input.value = prev[i] ?? "";
+      limitNameInput(input);
       label.appendChild(input);
       namesEl.appendChild(label);
     }
@@ -141,7 +154,7 @@
 
   // ---- オンラインモード ----
   function onlineName() {
-    const name = $("online-name").value.trim();
+    const name = truncateName($("online-name").value);
     storageSet("yacht.name", name);
     return name || "ゲスト";
   }
@@ -419,7 +432,7 @@
   });
   $("local-start").addEventListener("click", () => {
     const names = [...$("name-fields").querySelectorAll("input")]
-      .map((input, i) => input.value.trim() || `P${i + 1}`);
+      .map((input, i) => truncateName(input.value) || `P${i + 1}`);
     startLocal(names);
   });
 
@@ -448,7 +461,8 @@
   renderCountChoices();
   renderNameFields();
   renderRulesTable();
-  $("online-name").value = storageGet("yacht.name");
+  $("online-name").value = truncateName(storageGet("yacht.name"));
+  limitNameInput($("online-name"));
 
   // 招待リンク（?room=XXXXX）から開いたときは、そのまま参加画面へ
   const roomFromUrl = Online.normalizeCode(new URLSearchParams(location.search).get("room"));

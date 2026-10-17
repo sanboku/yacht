@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  const { Game } = window.Yacht;
+  const { Game, truncateName } = window.Yacht;
 
   // どれかが落ちていても遊べるよう、複数のブローカーに同時につないで全部に送る（受信側で重複を除く）
   const BROKERS = [
@@ -151,7 +151,7 @@
 
     // ゲストは参加リクエストを生存確認として送り続ける
     function handleJoin(msg) {
-      const playerName = String(msg.name || "").trim().slice(0, 12) || "ゲスト";
+      const playerName = truncateName(msg.name) || "ゲスト";
       const existing = players.findIndex((p, i) => i > 0 && p.clientId === msg.from);
       if (existing >= 0) {
         const player = players[existing];

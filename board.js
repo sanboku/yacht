@@ -153,6 +153,17 @@
       });
     }
 
+    // 名前（最大4文字）が列からはみ出すときは、収まるまで文字を少し小さくする
+    function fitNames(headRow) {
+      [...headRow.children].slice(1).forEach((th) => {
+        let size = parseFloat(getComputedStyle(th).fontSize);
+        while (th.scrollWidth > th.clientWidth && size > 8) {
+          size -= 0.5;
+          th.style.fontSize = `${size}px`;
+        }
+      });
+    }
+
     function cell(text, className) {
       const td = document.createElement("td");
       td.textContent = text;
@@ -181,6 +192,7 @@
       });
       thead.appendChild(headRow);
       sheetEl.appendChild(thead);
+      requestAnimationFrame(() => fitNames(headRow));
 
       const tbody = document.createElement("tbody");
 
