@@ -53,17 +53,11 @@
   }
 
   // 複数ブローカーへの接続をまとめて、1本の通信路のように扱う
-  // handlers: { onMessage(topic, msg), onConnect(), onFail(), onStatus(status) }
+  // handlers: { onMessage(topic, msg), onConnect(), onFail() }
   function createRelay(subscribeTopic, handlers) {
     const seen = new Set();
     const seenOrder = [];
     let everConnected = false;
-
-    // 各ブローカーにつながっているか（画面に表示して、つながらない原因を切り分けられるようにする）
-    function status() {
-      return BROKERS.map((b, i) => ({ name: b.name, connected: !!clients[i] && clients[i].connected }));
-    }
-    const notifyStatus = () => handlers.onStatus && handlers.onStatus(status());
 
     const clients = [];
     BROKERS.forEach(({ url }) => {
@@ -78,11 +72,8 @@
       client.on("connect", () => {
         client.subscribe(subscribeTopic, { qos: 0 });
         everConnected = true;
-        notifyStatus();
         handlers.onConnect();
       });
-      client.on("close", notifyStatus);
-      client.on("offline", notifyStatus);
       client.on("message", (topic, payload) => {
         let msg;
         try { msg = JSON.parse(payload.toString()); } catch { return; }
@@ -96,7 +87,6 @@
       client.on("error", () => { /* 再接続は mqtt.js が自動で行う */ });
       clients.push(client);
     });
-    notifyStatus();
 
     const failTimer = setTimeout(() => {
       if (!everConnected) handlers.onFail();
@@ -115,7 +105,6 @@
         clients.forEach((c) => { if (c.connected) c.publish(topic, payload, { qos: 0 }); });
       },
       get connected() { return clients.some((c) => c.connected); },
-      status,
       close() {
         clearTimeout(failTimer);
         document.removeEventListener("visibilitychange", onVisible);
@@ -130,7 +119,7 @@
   const CONNECT_ERROR = "通信サーバーに接続できません。電波の良い所で再度お試しください。";
 
   // ---- ホスト（部屋を作った人） ----
-  // ev: { onReady(code), onUpdate(payload), onError(message), onStatus(status) }
+  // ev: { onReady(code), onUpdate(payload), onError(message) }
   function createHost(name, ev) {
     const code = randomCode();
     const hostId = randomId();
@@ -218,7 +207,6 @@
         broadcast(); // つなぎ直したときも最新の状態を配り直す
       },
       onFail() { ev.onError(CONNECT_ERROR); },
-      onStatus: ev.onStatus,
     });
 
     // 定期的に最新の状態を配る（取りこぼしの回復と、ゲストへの生存通知を兼ねる）
@@ -254,7 +242,7 @@
   }
 
   // ---- ゲスト（部屋に入る人） ----
-  // ev: { onUpdate(payload), onError(message), onHostLost(lost: boolean), onWaiting(), onStatus(status) }
+  // ev: { onUpdate(payload), onError(message), onHostLost(lost: boolean), onWaiting() }
   function createGuest(code, name, ev) {
     const me = clientId();
     let joined = false;
@@ -296,7 +284,6 @@
         if (!joined) relay.send(hostTopic(code), { type: "join", from: me, name });
       },
       onFail() { finish(CONNECT_ERROR); },
-      onStatus: ev.onStatus,
     });
 
     // 参加リクエストを送り続ける。参加前はホストがアプリを切り替えていても戻れば応答でき、

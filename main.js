@@ -78,32 +78,15 @@
     if (document.visibilityState === "visible" && wantAwake) keepAwake(true);
   });
 
-  // 通信サーバーへの接続状態を表示する
-  function renderNet(status) {
-    ["online-net", "lobby-net"].forEach((id) => {
-      const el = $(id);
-      el.innerHTML = "";
-      if (!status) return;
-      el.append("通信サーバー: ");
-      status.forEach((b) => {
-        const span = document.createElement("span");
-        span.className = b.connected ? "on" : "off";
-        span.textContent = ` ${b.name}${b.connected ? "●" : "○"}`;
-        el.appendChild(span);
-      });
-    });
-  }
-
   function goHome() {
     if (controller) controller.dispose();
     controller = null;
     keepAwake(false);
-    renderNet(null);
     setBusy(false);
     $("online-wait").textContent = "";
     $("join-room").textContent = "部屋に入る";
     closeDialogs();
-    document.title = "ヨット";
+    document.title = "YACHT";
     history.replaceState(null, "", location.pathname);
     show("screen-home");
   }
@@ -230,7 +213,7 @@
       });
 
       // 自分の番になったら知らせる
-      document.title = myTurn ? "▶ あなたの番 - ヨット" : "ヨット";
+      document.title = myTurn ? "▶ あなたの番 - YACHT" : "YACHT";
       if (myTurn && !wasMyTurn && navigator.vibrate) navigator.vibrate(80);
       wasMyTurn = myTurn;
 
@@ -265,7 +248,6 @@
         history.replaceState(null, "", `?room=${code}`);
       },
       onUpdate: view.update,
-      onStatus: renderNet,
       onError(message) {
         setBusy(false);
         if (controller !== hostController) return;
@@ -323,7 +305,6 @@
         $("join-room").textContent = "ホストの応答を待っています…";
         $("online-wait").textContent = "ホストのスマホで待合室の画面が開いたままになっているか確認してください。やめるときは「戻る」を押してください。";
       },
-      onStatus: renderNet,
       onError(message) {
         setBusy(false);
         $("join-room").textContent = "部屋に入る";
@@ -352,10 +333,10 @@
   async function shareInvite() {
     const code = $("lobby-code").textContent;
     const url = inviteUrl(code);
-    const text = `ヨットで遊ぼう！ 部屋コード: ${code}`;
+    const text = `YACHTで遊ぼう！ 部屋コード: ${code}`;
     try {
       if (navigator.share) {
-        await navigator.share({ title: "ヨット", text, url });
+        await navigator.share({ title: "YACHT", text, url });
         return;
       }
       await navigator.clipboard.writeText(`${text}\n${url}`);

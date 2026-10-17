@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0f5132">
-  <title>ヨット</title>
+  <title>YACHT</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎲</text></svg>">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <!-- モード選択 -->
   <section id="screen-home" class="screen menu-screen">
-    <h1 class="logo">ヨット</h1>
+    <h1 class="logo">YACHT</h1>
     <div class="panel">
       <button id="go-local" class="btn primary big">1台で遊ぶ</button>
       <p class="mode-desc">1台のスマホを順番に回して遊びます（1〜4人）</p>
@@ -58,7 +58,6 @@
       <button id="join-room" class="btn big">部屋に入る</button>
       <p id="online-error" class="error" role="alert"></p>
       <p id="online-wait" class="mode-desc" aria-live="polite"></p>
-      <p id="online-net" class="net-status"></p>
       <button class="btn link go-home">戻る</button>
     </div>
   </section>
@@ -78,7 +77,6 @@
       <button id="lobby-start" class="btn primary big hidden">ゲーム開始</button>
       <p id="lobby-wait" class="mode-desc"></p>
       <p id="lobby-keep" class="keep-open hidden">参加者がそろうまで、この画面を開いたままにしてください</p>
-      <p id="lobby-net" class="net-status"></p>
       <button id="lobby-leave" class="btn link">退出する</button>
     </div>
   </section>

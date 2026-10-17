@@ -110,11 +110,6 @@ body {
   font-size: 0.85rem;
   text-align: center;
 }
-/* 通信サーバーへの接続状態（つながらないときの原因の切り分け用） */
-.net-status { margin: 0; text-align: center; font-size: 0.75rem; color: var(--muted); }
-.net-status:empty { display: none; }
-.net-status .on { color: #15803d; }
-.net-status .off { color: #9ca3af; }
 
 .lobby-label { margin: 0; color: var(--muted); font-size: 0.85rem; }
 .lobby-code {
