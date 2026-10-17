@@ -100,7 +100,10 @@
     for (let i = 0; i < n; i++) {
       const label = document.createElement("label");
       label.className = "field";
-      label.textContent = `プレイヤー${i + 1}`;
+      const caption = document.createElement("span");
+      caption.className = "field-label";
+      caption.textContent = `プレイヤー${i + 1}`;
+      label.appendChild(caption);
       const input = document.createElement("input");
       input.type = "text";
       input.maxLength = 12;
@@ -368,7 +371,30 @@
   document.querySelectorAll(".open-rules").forEach((b) => b.addEventListener("click", () => $("rules").showModal()));
   document.querySelectorAll(".close-dialog").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
 
-  $("player-count").addEventListener("change", renderNameFields);
+  // 人数は丸いボタンの並びで選ぶ（選択中はチェック付きのライム色）
+  function renderCountChoices() {
+    const select = $("player-count");
+    const box = $("count-choices");
+    box.innerHTML = "";
+    [...select.options].forEach((opt) => {
+      const btn = document.createElement("button");
+      const selected = opt.value === select.value;
+      btn.className = "choice" + (selected ? " selected" : "");
+      btn.setAttribute("role", "radio");
+      btn.setAttribute("aria-checked", String(selected));
+      btn.textContent = opt.textContent;
+      btn.addEventListener("click", () => {
+        select.value = opt.value;
+        select.dispatchEvent(new Event("change"));
+      });
+      box.appendChild(btn);
+    });
+  }
+
+  $("player-count").addEventListener("change", () => {
+    renderCountChoices();
+    renderNameFields();
+  });
   $("local-start").addEventListener("click", () => {
     const names = [...$("name-fields").querySelectorAll("input")]
       .map((input, i) => input.value.trim() || `P${i + 1}`);
@@ -397,6 +423,7 @@
     if (controller && controller.inProgress()) e.preventDefault();
   });
 
+  renderCountChoices();
   renderNameFields();
   renderRulesTable();
   $("online-name").value = storageGet("yacht.name");
