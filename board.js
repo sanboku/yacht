@@ -40,27 +40,22 @@
       lastRollId = null;
     }
 
+    // 上部にはラウンド数だけを出す（通信が途切れたときなどの補足があるときだけ2行目に表示）
     function renderStatus(game, view) {
       rollBtn.textContent = `振る（残り ${game.rollsLeft} 回）`;
       rollBtn.disabled = !view.canAct || !game.canRoll();
-      if (game.isOver) {
-        statusEl.textContent = "ゲーム終了！";
-        return;
+      const round = Math.min(game.round, CATEGORIES.length);
+      statusEl.innerHTML = "";
+      const roundEl = document.createElement("span");
+      roundEl.className = "round";
+      roundEl.textContent = `ROUND ${round} / ${CATEGORIES.length}`;
+      statusEl.appendChild(roundEl);
+      if (view.note && !game.isOver) {
+        const noteEl = document.createElement("span");
+        noteEl.className = "status-note";
+        noteEl.textContent = view.note;
+        statusEl.appendChild(noteEl);
       }
-      const round = `${game.round}/${CATEGORIES.length}`;
-      let who = "";
-      if (view.myIndex !== undefined) {
-        who = game.current === view.myIndex ? "あなたの番" : `${game.player.name} の番`;
-      } else if (game.players.length > 1) {
-        who = `${game.player.name} の番`;
-      }
-      let action = "";
-      if (view.note) action = view.note;
-      else if (!view.canAct) action = "";
-      else if (!game.hasRolled) action = "サイコロを振ってください";
-      else if (game.rollsLeft > 0) action = "キープして振り直すか、役を選択";
-      else action = "役を選んで記入してください";
-      statusEl.textContent = [`R${round}`, who, action].filter(Boolean).join(" ・ ");
     }
 
     function renderDice(game, view, animate) {
