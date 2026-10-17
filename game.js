@@ -74,17 +74,30 @@
     return all + bonus(sheet);
   }
 
+  // 手番の順番をランダムに決める（Fisher–Yates シャッフル）
+  function shuffledOrder(count) {
+    const order = [...Array(count).keys()];
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    return order;
+  }
+
   function rollDie(random) {
     return Math.floor(random() * 6) + 1;
   }
 
   // ゲーム全体の状態を管理する
   class Game {
-    constructor(playerNames, random = Math.random) {
+    // order: 手番の順番（players の添字の並び）。省略時はランダム
+    constructor(playerNames, random = Math.random, order = shuffledOrder(playerNames.length)) {
       this.random = random;
       this.rollId = 0;
       this.players = playerNames.map((name) => ({ name, sheet: {} }));
-      this.current = 0;
+      this.order = order;
+      this.turn = 0; // order の何番目の人の番か
+      this.current = order[0];
       this.round = 1;
       this.newTurn();
     }
@@ -92,7 +105,7 @@
     // オンライン対戦で送受信するための状態
     toState() {
       return {
-        players: this.players, current: this.current, round: this.round,
+        players: this.players, order: this.order, turn: this.turn, current: this.current, round: this.round,
         dice: this.dice, held: this.held, rollsLeft: this.rollsLeft, rollId: this.rollId,
       };
     }
@@ -145,11 +158,12 @@
     score(categoryId) {
       if (!this.canScore(categoryId)) return false;
       this.player.sheet[categoryId] = scoreFor(categoryId, this.dice);
-      this.current++;
-      if (this.current >= this.players.length) {
-        this.current = 0;
+      this.turn++;
+      if (this.turn >= this.order.length) {
+        this.turn = 0;
         this.round++;
       }
+      this.current = this.order[this.turn];
       this.newTurn();
       return true;
     }

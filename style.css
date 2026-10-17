@@ -441,3 +441,91 @@ dialog h2 { margin: 0 0 8px; font-size: 1.6rem; font-weight: 600; }
 .rules-table th, .rules-table td { border-bottom: 1px solid var(--line); padding: 8px 4px; text-align: left; }
 .rules-table th { white-space: nowrap; color: var(--lime); font-weight: 600; }
 .rules-table td { color: #dcdbe0; }
+
+/* 手番の人の列にうっすら色をつける */
+.scoresheet .cur { background: rgba(233, 249, 157, 0.09); }
+.scoresheet thead th.cur { background: #252a1c; }
+
+/* ホストの返事を待つ間、振ったサイコロを回し続ける（オンライン対戦のラグ対策） */
+.die.rolling-loop { animation: shake 0.35s infinite; }
+
+/* ---- お祝い演出（ボーナス獲得・ヨット成立） ---- */
+.celebrate {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  animation: celebrate-fade 2.2s ease forwards;
+}
+.celebrate-yacht { animation-duration: 2.8s; }
+.celebrate-burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 150vmax;
+  height: 150vmax;
+  margin: -75vmax 0 0 -75vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(233, 249, 157, 0.95) 0 30%, rgba(233, 249, 157, 0.55) 45%, rgba(233, 249, 157, 0) 70%);
+  animation: celebrate-burst 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.celebrate-yacht .celebrate-burst {
+  background: radial-gradient(circle, rgba(122, 43, 226, 0.95) 0 30%, rgba(122, 43, 226, 0.6) 45%, rgba(122, 43, 226, 0) 70%);
+}
+.celebrate-text {
+  position: relative;
+  text-align: center;
+  animation: celebrate-pop 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) 0.1s both;
+}
+.celebrate-title {
+  margin: 0;
+  font-size: clamp(3.5rem, 20vw, 7rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--purple);
+}
+.celebrate-yacht .celebrate-title { color: var(--lime); }
+.celebrate-sub {
+  margin: 8px 0 0;
+  font-size: clamp(1.1rem, 5vw, 1.5rem);
+  font-weight: 600;
+  color: var(--ink);
+}
+.celebrate-yacht .celebrate-sub { color: #fff; }
+.confetti {
+  position: absolute;
+  top: -20px;
+  width: 10px;
+  height: 14px;
+  border-radius: 2px;
+  animation-name: confetti-fall;
+  animation-timing-function: cubic-bezier(0.3, 0.6, 0.6, 1);
+  animation-fill-mode: forwards;
+}
+
+@keyframes celebrate-burst {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
+}
+@keyframes celebrate-pop {
+  from { transform: scale(0.3); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes celebrate-fade {
+  0%, 75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes confetti-fall {
+  from { transform: translate(0, 0) rotate(0); }
+  to { transform: translate(var(--drift), 110vh) rotate(var(--spin)); }
+}
+
+/* 動きを減らす設定の端末では、紙吹雪と拡大の動きを省く */
+@media (prefers-reduced-motion: reduce) {
+  .confetti { display: none; }
+  .celebrate-burst, .celebrate-text { animation-duration: 0.01s; }
+}

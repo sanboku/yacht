@@ -34,7 +34,13 @@
     show("screen-game");
   }
 
-  function showResult(game, { canRestart, note }) {
+  function showResult(game, options) {
+    // お祝い演出が出ている間は、終わってから結果を出す
+    if (document.querySelector(".celebrate")) {
+      setTimeout(() => showResult(game, options), 600);
+      return;
+    }
+    const { canRestart, note } = options;
     const rankingEl = $("ranking");
     rankingEl.innerHTML = "";
     game.players
@@ -186,6 +192,8 @@
     let hostLost = false;
     const LOST_NOTE = "ホストの応答を待っています…";
 
+    let lastOpts = null;
+
     function update(msg) {
       last = msg;
       const myIndex = msg.you;
@@ -208,12 +216,13 @@
       const currentOffline = !msg.players[game.current].connected;
       const myTurn = !game.isOver && game.current === myIndex;
       const proxy = isHost && !game.isOver && currentOffline;
-      board.render(game, {
+      lastOpts = {
         canAct: myTurn || proxy,
         myIndex,
         note: hostLost ? LOST_NOTE
           : proxy ? `${game.player.name}が切断中のため代わりに操作できます` : "",
-      });
+      };
+      board.render(game, lastOpts);
 
       // 自分の番になったら知らせる
       document.title = myTurn ? "▶ あなたの番 - YACHT" : "YACHT";
@@ -230,6 +239,16 @@
 
     return {
       update,
+      // ゲスト：操作をホストに送ると同時に、返事を待たずに見た目へ反映する（ラグ対策）
+      pending(action) {
+        if (!game || !lastOpts || !lastOpts.canAct || game.isOver) return;
+        if (action.kind === "hold") {
+          game.toggleHold(action.index);
+          board.render(game, lastOpts);
+        } else {
+          board.showPending(game, lastOpts, action.kind);
+        }
+      },
       // ゲスト：ホストからの通信が途絶えた／戻ったことを表示に反映する
       setHostLost(lost) {
         hostLost = lost;
@@ -324,7 +343,10 @@
       },
     });
     const guestController = {
-      act: (action) => guest.act(action),
+      act(action) {
+        view.pending(action);
+        guest.act(action);
+      },
       restart() {},
       inProgress: () => true,
       dispose: () => guest.close(),

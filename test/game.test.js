@@ -49,7 +49,7 @@ test("上段63点以上でボーナス35点", () => {
 test("ゲーム進行：振る回数・キープ・手番交代・終了", () => {
   let n = 0;
   const seq = [0.0, 0.2, 0.4, 0.6, 0.9]; // 1,2,3,4,6
-  const game = new Game(["A", "B"], () => seq[n++ % seq.length]);
+  const game = new Game(["A", "B"], () => seq[n++ % seq.length], [0, 1]);
 
   assert.equal(game.canScore("choice"), false, "振る前は記入できない");
   game.toggleHold(0);
@@ -79,7 +79,7 @@ test("ゲーム進行：振る回数・キープ・手番交代・終了", () =>
 });
 
 test("状態の保存と復元", () => {
-  const game = new Game(["A", "B"]);
+  const game = new Game(["A", "B"], Math.random, [0, 1]);
   game.roll();
   game.toggleHold(2);
   game.score("choice");
@@ -90,4 +90,25 @@ test("状態の保存と復元", () => {
   assert.ok(copy.canScore("yacht"));
   assert.ok(copy.roll());
   assert.equal(copy.rollId, game.rollId + 1);
+});
+
+test("手番の順番はランダムで、order の順に回る", () => {
+  const seen = new Set();
+  for (let i = 0; i < 200; i++) {
+    const g = new Game(["A", "B", "C"]);
+    assert.deepEqual([...g.order].sort(), [0, 1, 2]);
+    seen.add(g.order.join(""));
+  }
+  assert.equal(seen.size, 6, "3人なら6通りすべての順番が出る");
+
+  const game = new Game(["A", "B", "C"], Math.random, [2, 0, 1]);
+  const turns = [];
+  for (let i = 0; i < 4; i++) {
+    turns.push(game.player.name);
+    game.roll();
+    game.score(CATEGORIES.find((c) => game.player.sheet[c.id] === undefined).id);
+  }
+  assert.deepEqual(turns, ["C", "A", "B", "C"]);
+  assert.equal(game.round, 2);
+  assert.deepEqual(Game.fromState(game.toState()).order, [2, 0, 1]);
 });
