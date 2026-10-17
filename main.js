@@ -13,6 +13,85 @@
     SCREENS.forEach((id) => $(id).classList.toggle("hidden", id !== screenId));
   }
 
+  function currentScreen() {
+    return SCREENS.find((id) => !$(id).classList.contains("hidden"));
+  }
+
+  // ---- 画面の履歴 ----
+  // 画面を進めるたびにブラウザの履歴にも積むので、iOS の左端スワイプや
+  // Android の戻るボタンで1つ前の画面に戻れる。history.state = { screen, depth }
+  // アプリ側から戻したとき（確認や後片付けが済んでいる）。"home" ならトップを表示する
+  let silentPop = false;
+
+  function depth() {
+    return (history.state && history.state.depth) || 0;
+  }
+
+  // 次の画面へ進む。待合室からゲームへは置き換える（戻ると待合室ではなくオンライン設定画面へ）
+  function goTo(screenId) {
+    const from = currentScreen();
+    if (from === screenId) return;
+    if (from === "screen-lobby") {
+      history.replaceState({ screen: screenId, depth: depth() }, "", location.href);
+    } else {
+      history.pushState({ screen: screenId, depth: depth() + 1 }, "", location.href);
+    }
+    show(screenId);
+  }
+
+  // 1つ前の画面へ戻る（左上の矢印と同じ動き）
+  function goBack() {
+    if (depth() > 0) history.back();
+    else goHome();
+  }
+
+  // アプリ側から前の画面へ戻す（オンラインで部屋に入れなかったときなど）
+  function backTo(screenId) {
+    if (currentScreen() === screenId) return;
+    if (depth() > 0) {
+      silentPop = true;
+      history.back();
+    } else {
+      history.replaceState({ screen: screenId, depth: 0 }, "", location.href);
+      show(screenId);
+    }
+  }
+
+  window.addEventListener("popstate", (e) => {
+    const target = (e.state && e.state.screen) || "screen-home";
+    if (silentPop) {
+      const toHome = silentPop === "home";
+      silentPop = false;
+      if (toHome) {
+        // 招待リンクから開いた場合は最初の画面がオンライン設定なので、トップに置き換える
+        history.replaceState({ screen: "screen-home", depth: 0 }, "", location.pathname);
+        show("screen-home");
+      } else {
+        show(target);
+      }
+      return;
+    }
+    const from = currentScreen();
+    const leavingPlay = from === "screen-game" || from === "screen-lobby";
+    // 待合室では常に、対戦画面では対戦中だけ確認する
+    const inLobby = from === "screen-lobby";
+    const needConfirm = leavingPlay && controller && (inLobby || controller.inProgress());
+    if (needConfirm && !confirm(inLobby ? "部屋から退出しますか？" : "ゲームをやめますか？")) {
+      // 戻るのを取り消して、今の画面にとどまる
+      history.pushState({ screen: from, depth: depth() + 1 }, "", location.href);
+      return;
+    }
+    if (leavingPlay) leaveSession();
+    closeDialogs();
+    // 進む操作で、もう終わったゲームや部屋の画面に来た場合はトップへ
+    if ((target === "screen-game" || target === "screen-lobby") && !controller) {
+      history.replaceState({ screen: "screen-home", depth: depth() }, "", location.href);
+      show("screen-home");
+      return;
+    }
+    show(target);
+  });
+
   function storageGet(key) {
     try { return localStorage.getItem(key) || ""; } catch { return ""; }
   }
@@ -31,7 +110,7 @@
 
   function startBoard() {
     board.reset();
-    show("screen-game");
+    goTo("screen-game");
   }
 
   function showResult(game, options) {
@@ -84,7 +163,8 @@
     if (document.visibilityState === "visible" && wantAwake) keepAwake(true);
   });
 
-  function goHome() {
+  // 対戦や部屋から抜けるときの後片付け
+  function leaveSession() {
     if (controller) controller.dispose();
     controller = null;
     keepAwake(false);
@@ -93,8 +173,18 @@
     $("join-room").textContent = "部屋に入る";
     closeDialogs();
     document.title = "YACHT";
-    history.replaceState(null, "", location.pathname);
-    show("screen-home");
+  }
+
+  // トップへ戻る（履歴もトップまで巻き戻す）
+  function goHome() {
+    leaveSession();
+    if (depth() > 0) {
+      silentPop = "home";
+      history.go(-depth());
+    } else {
+      history.replaceState({ screen: "screen-home", depth: 0 }, "", location.pathname);
+      show("screen-home");
+    }
   }
 
   // 名前の入力欄は4文字まで。日本語の変換中は待ち、確定した時点で切り詰める
@@ -213,7 +303,7 @@
       if (msg.type === "lobby") {
         renderLobby(msg.players, myIndex, isHost);
         if (hostLost) $("lobby-wait").textContent = LOST_NOTE;
-        show("screen-lobby");
+        goTo("screen-lobby");
         return;
       }
       if (msg.type !== "state") return;
@@ -280,7 +370,7 @@
         $("lobby-code").textContent = code;
         $("invite").classList.remove("hidden");
         $("share-done").textContent = "";
-        history.replaceState(null, "", `?room=${code}`);
+        history.replaceState(history.state, "", `?room=${code}`);
       },
       onUpdate: view.update,
       onError(message) {
@@ -293,7 +383,7 @@
           controller = null;
           keepAwake(false);
           onlineError(message);
-          show("screen-online");
+          backTo("screen-online");
         }
       },
     });
@@ -308,7 +398,7 @@
     $("lobby-code").textContent = "…";
     $("invite").classList.add("hidden");
     renderLobby([{ name: onlineName() }], 0, true);
-    show("screen-lobby");
+    goTo("screen-lobby");
   }
 
   function joinRoom(code) {
@@ -332,7 +422,7 @@
           $("join-room").textContent = "部屋に入る";
           $("lobby-code").textContent = code;
           $("invite").classList.remove("hidden");
-          history.replaceState(null, "", `?room=${code}`);
+          history.replaceState(history.state, "", `?room=${code}`);
         }
         view.update(msg);
       },
@@ -349,7 +439,7 @@
         $("online-wait").textContent = "";
         closeDialogs();
         onlineError(message);
-        show("screen-online");
+        backTo("screen-online");
       },
       onHostLost(lost) {
         if (controller === guestController) view.setHostLost(lost);
@@ -400,9 +490,9 @@
   }
 
   // ---- イベント ----
-  $("go-local").addEventListener("click", () => show("screen-local"));
-  $("go-online").addEventListener("click", () => { onlineError(""); show("screen-online"); });
-  document.querySelectorAll(".go-home").forEach((b) => b.addEventListener("click", goHome));
+  $("go-local").addEventListener("click", () => goTo("screen-local"));
+  $("go-online").addEventListener("click", () => { onlineError(""); goTo("screen-online"); });
+  document.querySelectorAll(".go-home").forEach((b) => b.addEventListener("click", goBack));
   document.querySelectorAll(".open-rules").forEach((b) => b.addEventListener("click", () => $("rules").showModal()));
   document.querySelectorAll(".close-dialog").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
 
@@ -466,11 +556,11 @@
 
   // 招待リンク（?room=XXXXX）から開いたときは、そのまま参加画面へ
   const roomFromUrl = Online.normalizeCode(new URLSearchParams(location.search).get("room"));
+  const firstScreen = roomFromUrl ? "screen-online" : "screen-home";
+  history.replaceState({ screen: firstScreen, depth: 0 }, "", location.href);
+  show(firstScreen);
   if (roomFromUrl) {
     $("room-code").value = roomFromUrl;
-    show("screen-online");
     (storageGet("yacht.name") ? $("join-room") : $("online-name")).focus();
-  } else {
-    show("screen-home");
   }
 })();
